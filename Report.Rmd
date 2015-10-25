@@ -1,0 +1,71 @@
+---
+title: "Practical ML class Course Project"
+author: "Kirill Efremov"
+date: "Sunday, October 25, 2015"
+output: html_document
+---
+##Context
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+##Data
+The training data for this project are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+The test data are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+
+##Goal
+Build model which predict the manner in which sportsmen did the exercise. This is the "classe" variable in the training set.
+
+##Loading and preparation of data
+For building model load "caret" package.
+
+```{r results='hide'}
+library(caret)
+library(dplyr)
+set.seed(12345) #for reproducibility
+```
+Datasets should be already downloaded in working directory.
+```{r}
+data <- read.csv("pml-training.csv", na.strings=c("","NA","#DIV/0!")) #Read data and catch all na's
+
+```
+
+There are many variables which contain too much NA's so let's exclude them from model
+```{r}
+ColNums_TooMuchMissing <- function(df){ # helper func
+        as.vector(which(colSums(is.na(df)) <= 0.7*nrow(df)))
+}
+data<-data %>% select(ColNums_TooMuchMissing(.))
+
+```
+Also some variables not informative so let's exclude them from model too.
+```{r}
+data<-data[,!(names(data) %in% c("X","user_name","cvtd_timestamp","raw_timestamp_part_1","raw_timestamp_part_2","new_window"))]
+```
+
+Provided pml-testing.csv it's test dataset just for submitting part of project. We can't use it for building accurate model because it has only 20 rows. So let's do test dataset
+```{r}
+partition <- createDataPartition(data$classe, p=0.7,list = F) # 70% for training 30% for testing
+trainingSet <- data[partition, ]
+testSet <- data[-partition, ]
+
+```
+
+##Training with cross-validation
+We need classification model. Random forest from caret package should be exellent choice for this purpose.
+For better performance setup trainControl method corss-validation, prepocessing with PCA
+
+```{r}
+tc <- trainControl(method = "cv", number = 7, verboseIter=FALSE , preProcOptions="pca", allowParallel=TRUE)
+rf <- train(classe ~ ., data = trainingSet, method = "rf", trControl= tc)
+```
+
+##Prediction and checking accuracy
+```{r}
+rfP<-predict(rf,testSet)
+confusionMatrix(rfP, testSet$classe)
+```
+
+Accuracy and kappa is about 0.99. So Random forest is good for this project no need looking for other model. rfP is final model
+
